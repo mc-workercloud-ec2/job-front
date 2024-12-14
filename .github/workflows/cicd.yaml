@@ -47,7 +47,7 @@ jobs:
 
     - name: Fill in the new image ID in the Amazon ECS task definition
       id: task-def
-      uses: aws-actions/amazon-ecs-render-task-definition@v2
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
       env:
         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         REPOSITORY: jinwoo-frontend
@@ -58,7 +58,7 @@ jobs:
         container-name: jinwoo-front
 
     - name: Deploy Amazon ECS task definition
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v2
       with:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
         service: ec2team-241214-front-service
