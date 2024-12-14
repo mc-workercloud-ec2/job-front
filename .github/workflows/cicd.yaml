@@ -1,0 +1,80 @@
+name: ECS CICD
+on:
+  push:
+    branches:
+      - main  
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest 
+    if: ${{ !contains(github.event.head_commit.message, '[skip actions]') }}
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume:  arn:aws:iam::${{ secrets.AWS_ACCOUNT }}:role/github-actions2
+        aws-region: ap-northeast-2  
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      with:
+        mask-password: 'true'
+
+    - name: Set up Docker Buildx          
+      uses: docker/setup-buildx-action@v3
+    - name: Build, tag, and push docker image to Amazon ECR Public
+      uses: docker/build-push-action@v6
+      id: build-image
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        REPOSITORY: front
+        IMAGE_TAG: ${{ github.sha }}
+      with:
+        push: true
+        tags: | 
+           ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+           ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:latest
+        cache-from: type=gha              
+        cache-to: type=gha,mode=max
+
+    - name: Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        REPOSITORY: front
+        IMAGE_TAG: ${{ github.sha }}
+      with:
+        image:  ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+        task-definition: task-definition.json
+        container-name: web
+
+    - name: Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: web
+        cluster: ecs-cluster
+        wait-for-service-stability: true
+
+    - name: Post a message in a channel
+      uses: slackapi/slack-github-action@v2.0.0
+      if: always()
+      with:
+        webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+        webhook-type: incoming-webhook
+        payload: |
+          blocks:
+            - type: "section"
+              text:
+                type: "mrkdwn"
+                text: "<@channel> Front Build 결과: ${{ job.status }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      
