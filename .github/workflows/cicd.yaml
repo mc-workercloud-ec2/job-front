@@ -35,13 +35,13 @@ jobs:
       id: build-image
       env:
         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        REPOSITORY: front
+        REPOSITORY: jinwoo-frontend
         IMAGE_TAG: ${{ github.sha }}
       with:
         push: true
         tags: | 
            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
-           ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:latest
+           ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:web
         cache-from: type=gha              
         cache-to: type=gha,mode=max
 
@@ -50,19 +50,19 @@ jobs:
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       env:
         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        REPOSITORY: front
+        REPOSITORY: jinwoo-frontend
         IMAGE_TAG: ${{ github.sha }}
       with:
         image:  ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
         task-definition: task-definition.json
-        container-name: web
+        container-name: jinwoo-front
 
     - name: Deploy Amazon ECS task definition
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
       with:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
-        service: web
-        cluster: ecs-cluster
+        service: ec2team-241214-front-service
+        cluster: ec2team-241214-ecs-cluster
         wait-for-service-stability: true
 
     - name: Post a message in a channel
